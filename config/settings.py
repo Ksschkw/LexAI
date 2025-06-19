@@ -18,10 +18,10 @@ class Settings:
     MODEL_NAME = "llama3-8b-8192"
     
     # Chunk size for document splitting (words), balances context and performance
-    CHUNK_SIZE = 200
+    CHUNK_SIZE = 300
     
     # Overlap between chunks (words), ensures continuity in context
-    OVERLAP = 20
+    OVERLAP = 50
     
     # Path to Nigerian Constitution PDF, update this before running
     CONSTITUTION_PATH = "Constitution-of-the-Federal-Republic-of-Nigeria.pdf"

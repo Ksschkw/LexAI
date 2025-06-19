@@ -1,94 +1,172 @@
-# Purpose: Manages the TF-IDF vector store for document retrieval.
-# Why: Explicitly separates vector storage for modularity and scalability.
+# Purpose: Manages hybrid vector store with dense and sparse retrieval
+# Why: Combines benefits of semantic and keyword search for better results
 
 from swarmauri.standard.documents.concrete.Document import Document
-from swarmauri.standard.vector_stores.concrete.TfidfVectorStore import TfidfVectorStore
 import json
 import os
+import numpy as np
+import faiss
+import re
+from rank_bm25 import BM25Okapi
+from sentence_transformers import SentenceTransformer
 from utils.logger import logger
 
 class VectorStoreManager:
-    """Handles initialization and population of the TF-IDF vector store."""
+    """Handles hybrid vector store with dense and sparse retrieval."""
     
     def __init__(self, json_path="constitution_chunks.json"):
-        """Initializes an empty TF-IDF vector store and loads chunks if file exists.
+        """Initializes hybrid vector store."""
+        print("Initializing Hybrid Vector Store")
         
-        Args:
-            json_path (str): Path to the JSON file containing document chunks.
-        """
-        self.vector_store = TfidfVectorStore()
+        # Create local cache
+        cache_dir = os.path.join(os.getcwd(), ".cache", "models")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Use efficient MiniLM model (small download)
+        self.model = SentenceTransformer(
+            'all-MiniLM-L6-v2',
+            cache_folder=cache_dir
+        )
+        self.dimension = 384
+        self.index = faiss.IndexFlatL2(self.dimension)
+        
+        # Sparse retrieval
+        self.bm25 = None
+        self.doc_texts = []
+        
+        self.documents = []
         self.json_path = json_path
-        print("Initializing VectorStoreManager")
+        
         if os.path.exists(json_path):
             print(f"Found {json_path}, loading...")
             self.load_and_populate()
         else:
-            logger.warning(f"JSON file not found at {json_path} - vector store remains empty")
             print(f"Warning: {json_path} not found")
     
     def load_and_populate(self):
-        """Loads chunks from JSON file and populates the vector store."""
-        logger.info(f"Loading chunks from {self.json_path}")
+        """Populates both dense and sparse indexes."""
         try:
             with open(self.json_path, "r", encoding="utf-8") as f:
-                chunks = json.load(f)
-            print(f"Loading {len(chunks)} chunks from {self.json_path}")
-            self.add_documents(chunks)
-            logger.info(f"Populated vector store with {len(chunks)} chunks")
-            print("Documents added to vector store")
+                chunk_data = json.load(f)
+            
+            print(f"Loading {len(chunk_data)} chunks")
+            
+            self.documents = []
+            embeddings = []
+            self.doc_texts = []
+            
+            for idx, chunk_dict in enumerate(chunk_data):
+                content = chunk_dict["content"]
+                metadata = chunk_dict["metadata"]
+                
+                doc = Document(
+                    content=content,
+                    metadata={
+                        "id": "constitution",
+                        "chunk_id": idx,
+                        "chapter": metadata.get("chapter", "UNKNOWN"),
+                        "is_fundamental_rights": metadata.get("is_fundamental_rights", 0)
+                    }
+                )
+                self.documents.append(doc)
+                self.doc_texts.append(content)
+                
+                # Generate embedding
+                embedding = self.model.encode(content)
+                embeddings.append(embedding)
+            
+            # Create dense index
+            embeddings = np.array(embeddings).astype('float32')
+            self.index.add(embeddings)
+            
+            # Create sparse index
+            tokenized_corpus = [doc.split() for doc in self.doc_texts]
+            self.bm25 = BM25Okapi(tokenized_corpus)
+            
+            print(f"Hybrid index created with {len(self.documents)} documents")
+            logger.info(f"Vector store populated with {len(self.documents)} documents")
         except Exception as e:
-            logger.error(f"Failed to load or populate vector store: {str(e)}")
+            print(f"Error loading chunks: {str(e)}")
+            logger.error(f"Failed to populate vector store: {str(e)}")
     
-    def add_documents(self, chunks):
-        """Adds document chunks to the vector store.
-        
-        Args:
-            chunks (list): List of text chunks from DocumentManager or JSON.
-        """
-        documents = []
-        for i, chunk in enumerate(chunks):
-            doc = Document(
-                content=chunk,
-                metadata={"id": "constitution", "chunk_id": i}
-            )
-            documents.append(doc)
-        self.vector_store.add_documents(documents)
-        print(f"Successfully added {len(documents)} documents")
-        logger.debug(f"Added {len(documents)} documents to vector store")
+    def dense_retrieve(self, query, top_k):
+        """Retrieves using dense embeddings."""
+        query_embedding = self.model.encode([query])[0]
+        distances, indices = self.index.search(np.array([query_embedding]).astype('float32'), top_k)
+        return [self.documents[i] for i in indices[0]]
     
-    def get_store(self):
-        """Returns the populated vector store.
-        
-        Returns:
-            TfidfVectorStore: The vector store instance.
-        """
-        return self.vector_store
+    def sparse_retrieve(self, query, top_k):
+        """Retrieves using BM25."""
+        tokenized_query = query.split()
+        doc_scores = self.bm25.get_scores(tokenized_query)
+        best_indices = np.argsort(doc_scores)[::-1][:top_k]
+        return [self.documents[i] for i in best_indices]
     
-    def test_retrieval(self, query, top_k=1):
-        """Tests retrieval from the vector store.
+    # def is_rights_query(query):
+    #     """Check if the query is rights-related."""
+    #     rights_keywords = ["rights", "human rights", "fundamental rights", "freedom", "liberty"]
+    #     return any(keyword in query.lower() for keyword in rights_keywords)
+
+    def hybrid_retrieve(self, query, top_k=10):
+        """Combines dense and sparse retrieval results."""
+        # Get both result sets
+        dense_results = self.dense_retrieve(query, top_k*2)
+        sparse_results = self.sparse_retrieve(query, top_k*2)
         
-        Args:
-            query (str): Query to retrieve documents for.
-            top_k (int): Number of top results to return.
-        Returns:
-            list: Retrieved documents.
-        """
-        if not self.vector_store.documents:
-            logger.warning("Vector store is empty - no retrieval possible")
+        # Combine and deduplicate
+        combined = {doc.metadata['chunk_id']: doc for doc in dense_results + sparse_results}
+        all_results = list(combined.values())
+        
+        # Rerank by relevance to query
+        query_embedding = self.model.encode(query)
+        scored_results = []
+        for doc in all_results:
+            doc_embedding = self.model.encode(doc.content)
+            similarity = np.dot(query_embedding, doc_embedding) / (
+                np.linalg.norm(query_embedding) * np.linalg.norm(doc_embedding))
+            
+            # Adjust score based on query type
+            rights_keywords = ["rights", "human rights", "fundamental rights", "freedom", "liberty"]
+            if any(keyword in query.lower() for keyword in rights_keywords):
+                boost = 0.5 if doc.metadata['is_fundamental_rights'] == 1 else 0
+            else:
+                boost = -0.5 if doc.metadata['is_fundamental_rights'] == 1 else 0
+            score = similarity + boost
+            scored_results.append((doc, score))
+        
+        scored_results.sort(key=lambda x: x[1], reverse=True)
+        return [doc for doc, _ in scored_results[:top_k]]
+    
+    def test_retrieval(self, query, top_k=10):
+        """Tests retrieval with detailed output."""
+        print(f"\n{'='*50}")
+        print(f"Testing query: '{query}'")
+        print(f"{'='*50}")
+        
+        if not self.documents:
+            print("Vector store is empty")
             return []
-        return self.vector_store.retrieve(query, top_k=top_k)
+        
+        results = self.hybrid_retrieve(query, top_k)
+        
+        print(f"Retrieved {len(results)} documents:")
+        for i, doc in enumerate(results, 1):
+            meta = doc.metadata
+            print(f"\nResult {i}: [Chapter: {meta['chapter']}] [Rights: {meta['is_fundamental_rights']}]")
+            print(f"Content: {doc.content[:150]}...")
+        
+        return results
 
 if __name__ == "__main__":
-    # Test the vector store
-    logger.info("Running vector store test")
     vsm = VectorStoreManager()
-    if vsm.vector_store.documents:
-        test_query = "What are my rights?"
-        results = vsm.test_retrieval(test_query)
-        print("Testing retrieval...")
-        logger.info(f"Test retrieval for '{test_query}' returned {len(results)} results")
-        for i, doc in enumerate(results):
-            logger.info(f"Result {i + 1}: {doc.content[:50]}...")
-        
-    else:
-        logger.info("No documents loaded - populate vector store first")
+    test_queries = [
+        "What are my fundamental human rights?",
+        "How is the president elected?",
+        "What are the requirements to run for governor?",
+        "Explain the judicial appointment process",
+        "What is the role of the National Assembly?",
+        "Can I own land in Nigeria?"
+    ]
+    
+    for query in test_queries:
+        vsm.test_retrieval(query)

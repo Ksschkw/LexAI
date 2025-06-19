@@ -7,6 +7,7 @@ import sys
 import os
 from utils.logger import logger
 import time
+import json
 
 # Dynamically adjust path to include project root when run directly
 if __name__ == "__main__":
@@ -26,33 +27,35 @@ class DocumentManager:
         logger.info(f"Initialized DocumentManager with chunk_size={self.chunk_size}, overlap={self.overlap}")
     
     def extract_from_pdf(self, pdf_path=settings.CONSTITUTION_PATH):
-        """Extracts and cleans text from the Nigerian Constitution PDF.
-        
-        Args:
-            pdf_path (str): Path to the PDF file.
-        Returns:
-            str: Cleaned text from the PDF.
-        Raises:
-            FileNotFoundError: If the PDF file is missing.
-            ValueError: If no text is extracted.
-        """
+        """Extracts and cleans text from the Nigerian Constitution PDF."""
         logger.info(f"Attempting to extract text from {pdf_path}")
         try:
             reader = PdfReader(pdf_path)
             text = ""
+            empty_pages = []
+            
             for page_num, page in enumerate(reader.pages, 1):
+                # Skip known empty pages
+                if page_num in [1, 2, 6, 272, 273]:
+                    empty_pages.append(page_num)
+                    continue
+                    
                 page_text = page.extract_text()
                 if page_text:
-                    text += page_text
-                    logger.debug(f"Extracted text from page {page_num}")
+                    # Clean text
+                    page_text = re.sub(r'\s+', ' ', page_text).strip()
+                    text += f"\nPAGE {page_num}: {page_text}"
                 else:
-                    logger.warning(f"No text extracted from page {page_num}")
-            if not text:
+                    logger.warning(f"Page {page_num} has no extractable text")
+                    empty_pages.append(page_num)
+            
+            if empty_pages:
+                logger.info(f"Skipped {len(empty_pages)} empty pages: {empty_pages}")
+            
+            if not text.strip():
                 raise ValueError("No text extracted from the PDF.")
-            # Clean up extra newlines and spaces
-            cleaned_text = re.sub(r'\n\s*\n', '\n', text).strip()
-            logger.info(f"Extracted and cleaned {len(cleaned_text)} characters of text")
-            return cleaned_text
+                
+            return text
         except FileNotFoundError:
             logger.error(f"PDF not found at {pdf_path}")
             raise
@@ -61,24 +64,17 @@ class DocumentManager:
             raise
     
     def chunk_document(self, content):
-        """Splits text into chunks with overlap for vector storage.
-        
-        Args:
-            content (str): Raw text to chunk.
-        Returns:
-            list: List of text chunks.
-        """
+        """Splits text into chunks with overlap for vector storage."""
         logger.info(f"Chunking document with {len(content.split())} words")
         words = content.split()
         total_words = len(words)
         chunks = []
         start = 0
-        effective_step = self.chunk_size - self.overlap  # Net advancement per chunk
+        effective_step = self.chunk_size - self.overlap
         
-        start_time = time.time()
         while start < total_words:
             end = min(start + self.chunk_size, total_words)
-            if end - start < self.chunk_size * 0.5:  # If less than half a chunk remains, stop
+            if end - start < self.chunk_size * 0.5:
                 chunk = ' '.join(words[start:end])
                 if chunk.strip():
                     chunks.append(chunk)
@@ -86,40 +82,44 @@ class DocumentManager:
             chunk = ' '.join(words[start:end])
             chunks.append(chunk)
             start += effective_step
-            if len(chunks) % 50 == 0:  # Log progress every 50 chunks
-                elapsed = time.time() - start_time
-                logger.info(f"Processed {len(chunks)} chunks in {elapsed:.2f} seconds")
-            if time.time() - start_time > 300:  # 5-minute timeout
-                logger.error("Chunking exceeded 5-minute timeout—aborting")
-                break
-        elapsed = time.time() - start_time
-        expected_chunks = (total_words + self.chunk_size - 1) // effective_step  # Ceiling division
-        logger.info(f"Created {len(chunks)} chunks in {elapsed:.2f} seconds (expected ~{expected_chunks})")
         return chunks
     
     def preprocess(self):
-        """Runs the full preprocessing pipeline.
-        
-        Returns:
-            list: List of document chunks ready for vector storage.
-        """
+        """Runs the full preprocessing pipeline."""
         logger.info("Starting preprocessing pipeline")
-        raw_text = self.extract_from_pdf(settings.CONSTITUTION_PATH)
-        return self.chunk_document(raw_text)
+        raw_text = self.extract_from_pdf()
+        chunks = self.chunk_document(raw_text)
+        
+        # Add section tracking
+        tagged_chunks = []
+        current_chapter = "PREAMBLE"
+        
+        for chunk in chunks:
+            # Detect chapter headers
+            chapter_match = re.search(r'CHAPTER [IVX]+', chunk)
+            if chapter_match:
+                current_chapter = chapter_match.group(0)
+            
+            # Preserve metadata
+            tagged_chunks.append({
+                "content": chunk,
+                "metadata": {
+                    "chapter": current_chapter,
+                    "is_fundamental_rights": 1 if "CHAPTER IV" in current_chapter else 0
+                }
+            })
+        
+        return tagged_chunks
 
 if __name__ == "__main__":
-    # Run preprocessing if script is executed directly
-    logger.info("Executing document.py as main script")
+    logger.info("Executing document preprocessing")
     dm = DocumentManager()
     try:
         chunks = dm.preprocess()
-        if not chunks:
-            logger.warning("No chunks generated—check extraction or chunking logic")
         with open("constitution_chunks.json", "w", encoding="utf-8") as f:
-            import json
-            json.dump(chunks, f, ensure_ascii=False)
-        logger.info(f"Successfully saved {len(chunks)} chunks to constitution_chunks.json")
-        print(f"Extracted and saved {len(chunks)} chunks to constitution_chunks.json")
+            json.dump(chunks, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved {len(chunks)} chunks to constitution_chunks.json")
+        print(f"Extracted and saved {len(chunks)} chunks")
     except Exception as e:
         logger.error(f"Preprocessing failed: {str(e)}")
-        print(f"Error during preprocessing: {str(e)}")
+        print(f"Error: {str(e)}")

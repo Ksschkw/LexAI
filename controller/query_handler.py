@@ -41,8 +41,13 @@ class QueryHandler:
             )
             logger.info(f"Created new session: {session_id}")
         
-        # Execute query and save to database
         agent = self.sessions[session_id]
-        response = agent.exec(query)
+        
+        # Use hybrid retrieval instead of default vector store search
+        results = self.vector_store_manager.hybrid_retrieve(query, top_k=5)
+        context = "\n".join([doc.content for doc in results])
+        
+        # Pass context to agent
+        response = agent.exec(query, context=context)  # Assumes exec accepts context
         self.chat_db.save_chat(session_id, query, response)
         return response

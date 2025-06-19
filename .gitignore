@@ -2,3 +2,4 @@ lexenv
 .env
 __pycache__
 *.pyc
+.cache/
