@@ -45,8 +45,14 @@ class LEXAIRagAgent:
             self.add_message({"role": "assistant", "content": response})
             
             reasoning = "No relevant context was provided." if not context or not context.strip() else f"I used the context: '{context[:50]}...'."
-            return f"{response}\n\n**Reasoning**: {reasoning}"
+            return (
+                f"RESPONSE:\n{response}"
+                # f"REASONING:\n{reasoning}"
+            )
             
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}")
-            return f"Error processing query: {str(e)}\n\n**Reasoning**: Could not process due to an internal error."
+            return (
+                f"ERROR:\n{str(e)}\n\n"
+                f"REASONING:\nCould not process due to an internal error."
+            )
