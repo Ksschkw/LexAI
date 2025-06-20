@@ -5,7 +5,6 @@ from model.rag.rag_agent import LEXAIRagAgent
 from model.database.chat_history import ChatHistoryDB
 from model.vector_store.tfidf_store import VectorStoreManager
 from model.llm.groq_llm import GroqLLM
-from model.data.document import DocumentManager
 from utils.logger import logger
 
 class QueryHandler:
@@ -13,11 +12,8 @@ class QueryHandler:
     
     def __init__(self):
         """Initializes the handler with all necessary components."""
-        # Preprocess Constitution and populate vector store
-        doc_manager = DocumentManager()
-        chunks = doc_manager.preprocess()
+        # Initialize vector store (loads from constitution_chunks.json)
         self.vector_store_manager = VectorStoreManager()
-        self.vector_store_manager.add_documents(chunks)
         
         # Initialize LLM and session storage
         self.llm = GroqLLM()
@@ -29,25 +25,25 @@ class QueryHandler:
         
         Args:
             session_id (str): Unique session identifier.
-            query (str): User’s legal question.
+            query (str): User's legal question.
         Returns:
-            str: Agent’s response with reasoning.
+            str: Agent's response with reasoning.
         """
-        # Create new session if it doesn’t exist
+        # Create new session if it doesn't exist
         if session_id not in self.sessions:
             self.sessions[session_id] = LEXAIRagAgent(
                 llm=self.llm.get_llm(),
-                vector_store=self.vector_store_manager.get_store()
+                vector_store=self.vector_store_manager.get_vector_store()
             )
             logger.info(f"Created new session: {session_id}")
         
         agent = self.sessions[session_id]
         
-        # Use hybrid retrieval instead of default vector store search
+        # Use hybrid retrieval
         results = self.vector_store_manager.hybrid_retrieve(query, top_k=5)
         context = "\n".join([doc.content for doc in results])
         
         # Pass context to agent
-        response = agent.exec(query, context=context)  # Assumes exec accepts context
+        response = agent.execute(query, context)
         self.chat_db.save_chat(session_id, query, response)
         return response

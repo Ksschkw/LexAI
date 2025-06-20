@@ -9,7 +9,7 @@ import uvicorn
 def run_interactive_loop():
     """Runs an interactive loop for local testing of LEXAI.
     
-    Why: Mirrors MYRAGAGENT’s local testing feature for quick debugging.
+    Why: Mirrors MYRAGAGENT's local testing feature for quick debugging.
     """
     print("Welcome to LEXAI! Type 'exit' to quit.")
     session_id = "local_test_session"

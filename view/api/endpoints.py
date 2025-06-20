@@ -1,9 +1,15 @@
-# Purpose: Defines FastAPI endpoints for LEXAI’s API.
+# Purpose: Defines FastAPI endpoints for LEXAI's API.
 # Why: Explicitly separates API logic for clarity and deployment.
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from controller.query_handler import QueryHandler
+from pydantic import BaseModel
+
+# Pydantic model for the query request
+class QueryRequest(BaseModel):
+    query: str
+    session_id: str
 
 # Initialize FastAPI app
 app = FastAPI(title="LEXAI API")
@@ -21,17 +27,18 @@ app.add_middleware(
 query_handler = QueryHandler()
 
 @app.post("/query")
-async def query_endpoint(query: str, session_id: str):
+async def query_endpoint(request: QueryRequest):
     """Handles user queries via POST request.
     
     Args:
-        query (str): The legal question.
-        session_id (str): Unique session identifier.
+        request (QueryRequest): The legal question and session ID.
     Returns:
         dict: Query and response.
     Raises:
         HTTPException: If query is empty or processing fails.
     """
+    query = request.query
+    session_id = request.session_id
     if not query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
     try:
@@ -42,7 +49,7 @@ async def query_endpoint(query: str, session_id: str):
 
 @app.get("/health")
 async def health_check():
-    """Checks the API’s health status.
+    """Checks the API's health status.
     
     Returns:
         dict: Health status.

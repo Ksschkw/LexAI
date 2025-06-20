@@ -3,3 +3,7 @@ lexenv
 __pycache__
 *.pyc
 .cache/
+*.log
+*.pyo
+*.pyd
+*.db

@@ -4,8 +4,9 @@ sentence-transformers==3.0.1
 faiss-cpu==1.8.0
 numpy==1.26.4
 pypdf2==3.0.1
-swarmauri==0.4.0
+swarmauri==0.4.1
 python-dotenv==1.0.1
 transformers
 torch
 rank-bm25
+groq
