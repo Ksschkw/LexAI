@@ -1,30 +1,48 @@
-# Purpose: Provides a clean interface to the Groq LLM.
-# Why: Explicit wrapper avoids tight coupling with SwarmaURI’s implementation.
-
-from swarmauri.standard.llms.concrete.GroqModel import GroqModel
+import requests
+import json
 from config.settings import settings
+import logging
+
+logger = logging.getLogger("LEXAI")
 
 class GroqLLM:
-    """Wrapper for GroqModel to handle LLM interactions."""
+    """Proper Groq API implementation matching official documentation."""
     
     def __init__(self):
-        """Initializes the Groq LLM with API key and model name."""
-        self.llm = GroqModel(api_key=settings.API_KEY, name=settings.MODEL_NAME)
+        self.api_key = settings.API_KEY
+        self.model_name = settings.MODEL_NAME
+        self.base_url = "https://api.groq.com/openai/v1/chat/completions"
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
     
-    def generate(self, prompt):
-        """Generates a response from the LLM.
+    def predict(self, messages):
+        """Generates a response using Groq API with proper formatting."""
+        payload = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 1024,
+            "top_p": 1,
+            "stop": None,
+            "stream": False
+        }
         
-        Args:
-            prompt (str): The input prompt for the LLM.
-        Returns:
-            str: The LLM’s response.
-        """
-        return self.llm.predict(prompt)
+        try:
+            response = requests.post(
+                self.base_url,
+                headers=self.headers,
+                json=payload  # Use json parameter instead of data
+            )
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.error(f"Groq API error: {str(e)}")
+            if hasattr(response, 'text'):
+                logger.error(f"Response content: {response.text}")
+            raise RuntimeError(f"Failed to get response from Groq API")
     
     def get_llm(self):
-        """Returns the underlying GroqModel instance.
-        
-        Returns:
-            GroqModel: The LLM instance.
-        """
-        return self.llm
+        """Returns self for compatibility."""
+        return self

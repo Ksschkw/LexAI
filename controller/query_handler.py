@@ -32,7 +32,7 @@ class QueryHandler:
         # Create new session if it doesn't exist
         if session_id not in self.sessions:
             self.sessions[session_id] = LEXAIRagAgent(
-                llm=self.llm.get_llm(),
+                llm=self.llm.get_llm(),  # Pass the GroqModel instance directly
                 vector_store=self.vector_store_manager.get_vector_store()
             )
             logger.info(f"Created new session: {session_id}")
