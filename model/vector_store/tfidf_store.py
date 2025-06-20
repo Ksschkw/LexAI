@@ -12,6 +12,37 @@ from sentence_transformers import SentenceTransformer
 from utils.logger import logger
 from swarmauri.standard.vector_stores.base.VectorStoreBase import VectorStoreBase
 
+
+class HybridVectorStore(VectorStoreBase):
+    """Proper Pydantic-compatible hybrid vector store implementation."""
+    
+    def __init__(self, manager):
+        super().__init__()
+        self._manager = manager
+        self.documents = manager.documents
+    
+    def retrieve(self, query, top_k=10):
+        return self._manager.hybrid_retrieve(query, top_k)
+    
+    def add_document(self, document):
+        raise NotImplementedError("Adding documents is not supported in this wrapper.")
+    
+    def add_documents(self, documents):
+        raise NotImplementedError("Adding multiple documents is not supported in this wrapper.")
+    
+    def delete_document(self, document_id):
+        raise NotImplementedError("Deleting documents is not supported in this wrapper.")
+    
+    def get_all_documents(self):
+        raise NotImplementedError("Getting all documents is not supported in this wrapper.")
+    
+    def get_document(self, document_id):
+        raise NotImplementedError("Getting a specific document is not supported in this wrapper.")
+    
+    def update_document(self, document):
+        raise NotImplementedError("Updating documents is not supported in this wrapper.")
+    
+
 class VectorStoreManager:
     """Handles hybrid vector store with dense and sparse retrieval."""
     
@@ -139,31 +170,6 @@ class VectorStoreManager:
     
     def get_vector_store(self):
         """Returns a VectorStoreBase-compatible interface."""
-        class HybridVectorStore(VectorStoreBase):
-            def __init__(self, manager):
-                self._manager = manager  # Store manager as a protected attribute
-            
-            def retrieve(self, query, top_k=10):
-                return self._manager.hybrid_retrieve(query, top_k)
-            
-            def add_document(self, document):
-                raise NotImplementedError("Adding documents is not supported in this wrapper.")
-            
-            def add_documents(self, documents):
-                raise NotImplementedError("Adding multiple documents is not supported in this wrapper.")
-            
-            def delete_document(self, document_id):
-                raise NotImplementedError("Deleting documents is not supported in this wrapper.")
-            
-            def get_all_documents(self):
-                raise NotImplementedError("Getting all documents is not supported in this wrapper.")
-            
-            def get_document(self, document_id):
-                raise NotImplementedError("Getting a specific document is not supported in this wrapper.")
-            
-            def update_document(self, document):
-                raise NotImplementedError("Updating documents is not supported in this wrapper.")
-        
         return HybridVectorStore(self)
     
     def test_retrieval(self, query, top_k=10):
