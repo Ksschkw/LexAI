@@ -151,7 +151,7 @@ Okafor Kosisochukwu Johnpaul (Kosi/Ksschkw)
 - WhatsApp: +2349019549473 *(for collaboration)*
 
 ## License
-MIT License - Free for all, encouraging open-source contribution.
+MIT License.
 
 ## Acknowledgements
 - Inspired by [MYRAGAGENT](https://github.com/Ksschkw/MYRAGAGENT).
