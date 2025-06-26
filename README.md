@@ -103,6 +103,9 @@ LEXAI’s architecture balances performance, accessibility, and scalability. Her
   curl -X POST "http://localhost:8000/query" -H "Content-Type: application/json" -d '{"query": "What are my rights?", "session_id": "test"}'
   ```
 
+### EXAMPLE UI
+![Example](image.png)
+
 ### Deployment to Northflank
 1. Build the Docker image:
    ```bash
