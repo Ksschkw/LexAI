@@ -104,6 +104,7 @@ LEXAI’s architecture balances performance, accessibility, and scalability. Her
   ```
 
 ### EXAMPLE UI
+i know the UI is ass dw
 ![Example](image.png)
 
 ### Deployment to Northflank
@@ -143,7 +144,7 @@ LEXAI’s architecture balances performance, accessibility, and scalability. Her
 - **Accessibility**: Serves the 70% of Nigerians without legal access with a free, scalable solution.
 
 ## Future Enhancements
-- **Multimodal**: Support PDF uploads and voice queries (e.g., using Tesseract, speechrecognition).
+- **Multimodal**: Support PDF uploads and voice queries (e.g., using Tesseract, speechrecognition). -CHANGE OF PLANS, I'LL USE PADDLE_OCR, tesseract is too much effort for meh results(maybe it's just skill issues)
 - **Multiagent**: Add translation (e.g., English to Igbo,Yoruba) and logging agents with LangGraph.
 - **Scalability**: Migrate to AWS ECS for increased load.
 
