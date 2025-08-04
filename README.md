@@ -82,8 +82,8 @@ LEXAI’s architecture balances performance, accessibility, and scalability. Her
 4. **Prepare Data**:
    - Place the **Constitution of the Federal Republic of Nigeria 1999** PDF (274 pages, 3.88MB) in the root as `Constitution-of-the-Federal-Republic-of-Nigeria.pdf`.
    - Update `config/settings.py` with the correct `CONSTITUTION_PATH` if renamed.
-5. **Initialize the Database**:
-   - The chat history database (`lexai_chat_history.db`) is created automatically on first run.
+<!-- 5. **Initialize the Database**:
+   - The chat history database (`lexai_chat_history.db`) is created automatically on first run. -->
 
 ## Usage
 ### Local Testing

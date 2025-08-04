@@ -2,7 +2,7 @@
 # Why: Explicitly separates control logic for modularity.
 
 from model.rag.rag_agent import LEXAIRagAgent
-from model.database.chat_history import ChatHistoryDB
+# from model.database.chat_history import ChatHistoryDB
 from model.vector_store.tfidf_store import VectorStoreManager
 from model.llm.groq_llm import GroqLLM
 from utils.logger import logger
@@ -17,7 +17,7 @@ class QueryHandler:
         
         # Initialize LLM and session storage
         self.llm = GroqLLM()
-        self.chat_db = ChatHistoryDB()
+        # self.chat_db = ChatHistoryDB()
         self.sessions = {}  # Dictionary to store session agents
     
     def handle_query(self, session_id, query):
@@ -45,5 +45,5 @@ class QueryHandler:
         
         # Pass context to agent
         response = agent.execute(query, context)
-        self.chat_db.save_chat(session_id, query, response)
+        # self.chat_db.save_chat(session_id, query, response)
         return response
